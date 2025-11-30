@@ -1,0 +1,17 @@
+html,
+body,
+pan-svg,
+canvas {
+  margin: 0;
+  padding: 0;
+  cursor: grab;
+  width: 100%;
+  height: 100vh;
+  outline: 0;
+  font-size: 0;
+}
+
+/* web components */
+pan-svg {
+  display: block;
+}
