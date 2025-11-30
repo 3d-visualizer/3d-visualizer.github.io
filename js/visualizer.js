@@ -69,6 +69,21 @@ class PanSVG extends HTMLElement {
         y: 184,
         hover: true,
       },
+      santodoming: {
+        name: "santodomingo",
+        x: 1660,
+        y: 811,
+      },
+      twinfalls: {
+        name: "twinfalls",
+        x: 840,
+        y: 308,
+      },
+      dc: {
+        name: "dc",
+        x: 2379,
+        y: 129,
+      },
     };
 
     function createBGImage(name, options, theme) {
@@ -79,13 +94,13 @@ class PanSVG extends HTMLElement {
       img.setAttribute("y", options.y);
       options.width && img.setAttribute("width", options.width);
       options.height && img.setAttribute("height", options.height);
-      options.hover && img.setAttribute("class", 'hover-state');
+      options.hover && img.setAttribute("class", "hover-state");
       imgs.push(img);
       return img;
     }
 
     // Add images dynamically
-    ["dark", "light"].forEach((theme) => {
+    ["light", "dark"].forEach((theme) => {
       const theme_group = document.createElementNS(svgNS, "g");
       theme_group.setAttribute("class", theme);
 
@@ -167,6 +182,17 @@ class PanSVG extends HTMLElement {
 
       scale = newScale;
       updateTransform();
+    });
+
+    // Default cursor
+    svg.style.cursor = "grab";
+
+    svg.addEventListener("mousedown", () => {
+      svg.style.cursor = "grabbing";
+    });
+
+    svg.addEventListener("mouseup", () => {
+      svg.style.cursor = "grab";
     });
   }
 }
