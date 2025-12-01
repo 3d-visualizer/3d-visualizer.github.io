@@ -8,6 +8,7 @@ canvas {
   height: 100vh;
   outline: 0;
   font-size: 0;
+  background-color: rgb(27, 27, 58);
 }
 
 pan-svg {
@@ -20,6 +21,16 @@ pan-svg {
       opacity: 1;
       cursor: default;
     }
+  }
+
+  &.loading {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &.ready {
+    opacity: 1;
+    transition: opacity 0.4s ease;
   }
 
   &.loop {

@@ -1,9 +1,15 @@
 class PanSVG extends HTMLElement {
   #data = {
     svgNS: "http://www.w3.org/2000/svg",
+
     playing: false,
     animStartTime: 0,
     animDuration: 200000,
+
+    // Ready / loading system
+    totalImages: 0,
+    loadedImages: 0,
+    ready: false,
 
     offsetX: 0,
     offsetY: 0,
@@ -38,39 +44,103 @@ class PanSVG extends HTMLElement {
   };
 
   connectedCallback() {
-    // ---------------------------------------
-    // SVG Base Setup
-    // ---------------------------------------
-    const svg = document.createElementNS(this.#data.svgNS, "svg");
-    svg.setAttribute("width", "100%");
-    svg.setAttribute("height", "100%");
-    svg.style.touchAction = "none";
-    svg.style.cursor = "grab";
-    this.appendChild(svg);
+    this.classList.add("loading"); // hide until ready
 
-    const g = document.createElementNS(this.#data.svgNS, "g");
-    g.setAttribute("class", "map");
-    svg.appendChild(g);
+    this.#setupSVG();
+    this.#setupImages();
+    this.#setupAnimation();
+    this.#setupPan();
+    this.#setupZoom();
+  }
 
-    // ---------------------------------------
-    // Animation Setup
-    // ---------------------------------------
-    // let this.#data.playing = false;
+  // -----------------------------
+  // MARK: READY TRACKER
+  // -----------------------------
+  #checkReady() {
+    this.#data.loadedImages++;
 
+    if (this.#data.loadedImages >= this.#data.totalImages) {
+      this.#data.ready = true;
+
+      this.classList.remove("loading");
+      this.classList.add("ready");
+    }
+  }
+
+  // -----------------------------
+  // SVG SETUP
+  // -----------------------------
+  #setupSVG() {
+    this.svg = document.createElementNS(this.#data.svgNS, "svg");
+    this.svg.setAttribute("width", "100%");
+    this.svg.setAttribute("height", "100%");
+    this.svg.style.touchAction = "none";
+    this.svg.style.cursor = "grab";
+    this.appendChild(this.svg);
+
+    this.g = document.createElementNS(this.#data.svgNS, "g");
+    this.g.setAttribute("class", "map");
+    this.svg.appendChild(this.g);
+  }
+
+  // -----------------------------
+  // BACKGROUND IMAGES + READY TRACKING
+  // -----------------------------
+  #setupImages() {
+    const createImage = (opt, theme) => {
+      const img = document.createElementNS(this.#data.svgNS, "image");
+
+      img.setAttributeNS(null, "href", `../img/${theme}/${opt.name}.webp`);
+      img.setAttribute("x", opt.x);
+      img.setAttribute("y", opt.y);
+      if (opt.width) img.setAttribute("width", opt.width);
+      if (opt.height) img.setAttribute("height", opt.height);
+      if (opt.hover) img.setAttribute("class", "hover-state");
+
+      this.#data.imgs.push(img);
+
+      // Count
+      this.#data.totalImages++;
+
+      // Mark ready on load or error (errors shouldn't freeze UI)
+      img.addEventListener("load", () => this.#checkReady());
+      img.addEventListener("error", () => this.#checkReady());
+
+      return img;
+    };
+
+    // Build both themes
+    ["light", "dark"].forEach((theme) => {
+      const group = document.createElementNS(this.#data.svgNS, "g");
+      group.setAttribute("class", theme);
+
+      Object.values(this.#data.imgs_options).forEach((opt) => {
+        group.appendChild(createImage(opt, theme));
+      });
+
+      this.g.appendChild(group);
+    });
+  }
+
+  // -----------------------------
+  // ANIMATION
+  // -----------------------------
+  #setupAnimation() {
     const lerp = (a, b, t) => a + (b - a) * t;
 
-    const animatePan = (timestamp) => {
+    const animate = (ts) => {
       if (!this.#data.playing) return;
-      if (!this.#data.animStartTime) this.#data.animStartTime = timestamp;
+
+      if (!this.#data.animStartTime) this.#data.animStartTime = ts;
 
       let progress =
-        ((timestamp - this.#data.animStartTime) / this.#data.animDuration) % 1;
+        ((ts - this.#data.animStartTime) / this.#data.animDuration) % 1;
 
       let i = this.#data.animationFrames.findIndex(
         (f, idx) =>
           progress >= f.t && progress < this.#data.animationFrames[idx + 1]?.t
       );
-      if (i === -1 || i >= this.#data.animationFrames.length - 1) i = 0;
+      if (i === -1) i = 0;
 
       const a = this.#data.animationFrames[i];
       const b = this.#data.animationFrames[i + 1];
@@ -79,129 +149,113 @@ class PanSVG extends HTMLElement {
       this.#data.offsetX = lerp(a.x, b.x, localT);
       this.#data.offsetY = lerp(a.y, b.y, localT);
 
-      updateTransform();
-      requestAnimationFrame(animatePan);
+      this.#updateTransform();
+      requestAnimationFrame(animate);
     };
 
     if (new URLSearchParams(location.search).has("play")) {
       this.classList.add("loop");
       this.#data.playing = true;
-      requestAnimationFrame(animatePan);
+      requestAnimationFrame(animate);
     }
+  }
 
-    const createBGImage = (opt, theme) => {
-      const img = document.createElementNS(this.#data.svgNS, "image");
-      img.setAttributeNS(null, "href", `../img/${theme}/${opt.name}.webp`);
-      img.setAttribute("x", opt.x);
-      img.setAttribute("y", opt.y);
-      if (opt.width) img.setAttribute("width", opt.width);
-      if (opt.height) img.setAttribute("height", opt.height);
-      if (opt.hover) img.setAttribute("class", "hover-state");
-      this.#data.imgs.push(img);
-      return img;
-    };
-
-    ["light", "dark"].forEach((theme) => {
-      const themeGroup = document.createElementNS(this.#data.svgNS, "g");
-      themeGroup.setAttribute("class", theme);
-      Object.values(this.#data.imgs_options).forEach((opt) =>
-        themeGroup.appendChild(createBGImage(opt, theme))
-      );
-      g.appendChild(themeGroup);
-    });
-
-    // ---------------------------------------
-    // Pan & Zoom State
-    // ---------------------------------------
-    const updateTransform = () => {
-      const svgRect = svg.getBoundingClientRect();
-      const viewW = svgRect.width;
-      const viewH = svgRect.height;
-
-      const imgW =
-        parseFloat(this.#data.imgs[0].getAttribute("width")) * this.#data.scale;
-      const imgH =
-        parseFloat(this.#data.imgs[0].getAttribute("height")) *
-        this.#data.scale;
-
-      const minX = Math.min(0, viewW - imgW);
-      const minY = Math.min(0, viewH - imgH);
-
-      this.#data.offsetX = Math.min(Math.max(this.#data.offsetX, minX), 0);
-      this.#data.offsetY = Math.min(Math.max(this.#data.offsetY, minY), 0);
-
-      g.setAttribute(
-        "transform",
-        `matrix(${this.#data.scale},0,0,${this.#data.scale},${
-          this.#data.offsetX
-        },${this.#data.offsetY})`
-      );
-    };
-
-    // ---------------------------------------
-    // Unified Pointer Events (mouse + touch)
-    // ---------------------------------------
-    const getPoint = (e) =>
+  // -----------------------------
+  // PAN
+  // -----------------------------
+  #setupPan() {
+    const pointerPos = (e) =>
       e.touches?.length
         ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
         : { x: e.offsetX, y: e.offsetY };
 
     const onDown = (e) => {
       this.#data.isDragging = true;
-      const p = getPoint(e);
+      const p = pointerPos(e);
       this.#data.startX = p.x - this.#data.offsetX;
       this.#data.startY = p.y - this.#data.offsetY;
-      svg.style.cursor = "grabbing";
+      this.svg.style.cursor = "grabbing";
     };
 
     const onMove = (e) => {
       if (!this.#data.isDragging) return;
       e.preventDefault();
-      const p = getPoint(e);
+
+      const p = pointerPos(e);
       this.#data.offsetX = p.x - this.#data.startX;
       this.#data.offsetY = p.y - this.#data.startY;
-      updateTransform();
+
+      this.#updateTransform();
     };
 
     const onUp = () => {
       this.#data.isDragging = false;
-      svg.style.cursor = "grab";
+      this.svg.style.cursor = "grab";
     };
 
-    svg.addEventListener("mousedown", onDown);
-    svg.addEventListener("mousemove", onMove);
-    svg.addEventListener("mouseup", onUp);
-    svg.addEventListener("mouseleave", onUp);
+    this.svg.addEventListener("mousedown", onDown);
+    this.svg.addEventListener("mousemove", onMove);
+    this.svg.addEventListener("mouseup", onUp);
+    this.svg.addEventListener("mouseleave", onUp);
 
-    svg.addEventListener("touchstart", onDown, { passive: false });
-    svg.addEventListener("touchmove", onMove, { passive: false });
-    svg.addEventListener("touchend", onUp);
+    this.svg.addEventListener("touchstart", onDown, { passive: false });
+    this.svg.addEventListener("touchmove", onMove, { passive: false });
+    this.svg.addEventListener("touchend", onUp);
+  }
 
-    // ---------------------------------------
-    // Zoom (mouse wheel only)
-    // ---------------------------------------
-    svg.addEventListener("wheel", (e) => {
+  // -----------------------------
+  // ZOOM
+  // -----------------------------
+  #setupZoom() {
+    this.svg.addEventListener("wheel", (e) => {
       e.preventDefault();
 
-      const mouseX = e.offsetX;
-      const mouseY = e.offsetY;
+      const mx = e.offsetX;
+      const my = e.offsetY;
       let newScale = this.#data.scale * (1 - e.deltaY * 0.001);
 
       const minScale = Math.max(
-        svg.clientWidth / this.#data.imgs[0].getAttribute("width"),
-        svg.clientHeight / this.#data.imgs[0].getAttribute("height")
+        this.svg.clientWidth / this.#data.imgs[0].getAttribute("width"),
+        this.svg.clientHeight / this.#data.imgs[0].getAttribute("height")
       );
 
       newScale = Math.min(Math.max(newScale, minScale), 5);
 
       this.#data.offsetX -=
-        (mouseX - this.#data.offsetX) * (newScale / this.#data.scale - 1);
+        (mx - this.#data.offsetX) * (newScale / this.#data.scale - 1);
       this.#data.offsetY -=
-        (mouseY - this.#data.offsetY) * (newScale / this.#data.scale - 1);
+        (my - this.#data.offsetY) * (newScale / this.#data.scale - 1);
 
       this.#data.scale = newScale;
-      updateTransform();
+      this.#updateTransform();
     });
+  }
+
+  // -----------------------------
+  // TRANSFORM
+  // -----------------------------
+  #updateTransform() {
+    const rect = this.svg.getBoundingClientRect();
+    const viewW = rect.width;
+    const viewH = rect.height;
+
+    const imgW =
+      parseFloat(this.#data.imgs[0].getAttribute("width")) * this.#data.scale;
+    const imgH =
+      parseFloat(this.#data.imgs[0].getAttribute("height")) * this.#data.scale;
+
+    const minX = Math.min(0, viewW - imgW);
+    const minY = Math.min(0, viewH - imgH);
+
+    this.#data.offsetX = Math.min(Math.max(this.#data.offsetX, minX), 0);
+    this.#data.offsetY = Math.min(Math.max(this.#data.offsetY, minY), 0);
+
+    this.g.setAttribute(
+      "transform",
+      `matrix(${this.#data.scale},0,0,${this.#data.scale},${
+        this.#data.offsetX
+      },${this.#data.offsetY})`
+    );
   }
 }
 
