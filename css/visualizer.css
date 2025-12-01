@@ -23,10 +23,6 @@ pan-svg {
   }
 
   &.loop {
-    g.map {
-      animation: pan-animation 200s linear infinite;
-    }
-
     g.dark {
       animation: dark-animation 400s linear infinite;
     }
@@ -34,24 +30,6 @@ pan-svg {
     .hover-state {
       animation: lights-animation 400s linear infinite;
     }
-  }
-}
-
-@keyframes pan-animation {
-  0% {
-    transform: translate(-10%, -80%);
-  }
-  35% {
-    transform: translate(-130%, -90%);
-  }
-  55% {
-    transform: translate(-100%, 0%);
-  }
-  85% {
-    transform: translate(-30%, -20%);
-  }
-  100% {
-    transform: translate(-10%, -80%);
   }
 }
 

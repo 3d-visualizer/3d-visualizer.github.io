@@ -8,10 +8,60 @@ class PanSVG extends HTMLElement {
     svg.style.touchAction = "none"; // prevent touch scrolling
     this.appendChild(svg);
 
-    // Check if URL has "play" param
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has("play")) {
+    let playing = false;
+    let animStartTime = 0;
+    const animDuration = 200000; // 20 seconds (same as CSS)
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    const animationFrames = [
+      { t: 0, x: -168, y: -(window.innerHeight * 0.1) }, // -10vh
+      { t: 0.35, x: -2184, y: -945 },
+      { t: 0.55, x: -1680, y: 0 },
+      { t: 0.85, x: -504, y: -210 },
+      { t: 1, x: -168, y: -(window.innerHeight * 0.1) }, // loop back
+    ];
+
+    function animatePan(timestamp) {
+      if (!playing) return;
+
+      if (!animStartTime) animStartTime = timestamp;
+      let progress = (timestamp - animStartTime) / animDuration;
+
+      // Loop the animation 0 → 1
+      progress = progress % 1;
+
+      // Find which segment we are currently in
+      let i = animationFrames.findIndex(
+        (f, index) =>
+          progress >= f.t && progress < animationFrames[index + 1]?.t
+      );
+
+      // Safety fallback
+      if (i === -1 || i >= animationFrames.length - 1) i = 0;
+
+      const a = animationFrames[i];
+      const b = animationFrames[i + 1];
+
+      // Normalize progress inside this segment
+      const localT = (progress - a.t) / (b.t - a.t);
+
+      // Interpolated target position
+      offsetX = lerp(a.x, b.x, localT);
+      offsetY = lerp(a.y, b.y, localT);
+
+      // Apply boundary limits
+      updateTransform();
+
+      requestAnimationFrame(animatePan);
+    }
+
+    if (new URLSearchParams(location.search).has("play")) {
       this.classList.add("loop");
+      playing = true;
+      requestAnimationFrame(animatePan);
     }
 
     // Create group to apply pan & zoom
