@@ -1,71 +1,27 @@
 class PanSVG extends HTMLElement {
-  connectedCallback() {
-    const svgNS = "http://www.w3.org/2000/svg";
+  #data = {
+    svgNS: "http://www.w3.org/2000/svg",
+    playing: false,
+    animStartTime: 0,
+    animDuration: 200000,
 
-    // ---------------------------------------
-    // SVG Base Setup
-    // ---------------------------------------
-    const svg = document.createElementNS(svgNS, "svg");
-    svg.setAttribute("width", "100%");
-    svg.setAttribute("height", "100%");
-    svg.style.touchAction = "none"; // enable mobile panning
-    svg.style.cursor = "grab";
-    this.appendChild(svg);
+    offsetX: 0,
+    offsetY: 0,
+    scale: 1,
+    startX: 0,
+    startY: 0,
+    isDragging: false,
 
-    const g = document.createElementNS(svgNS, "g");
-    g.setAttribute("class", "map");
-    svg.appendChild(g);
-
-    // ---------------------------------------
-    // Animation Setup
-    // ---------------------------------------
-    let playing = false;
-    let animStartTime = 0;
-    const animDuration = 20000; // 20s
-
-    const lerp = (a, b, t) => a + (b - a) * t;
-
-    const animationFrames = [
+    animationFrames: [
       { t: 0, x: -168, y: -(window.innerHeight * 0.1) },
       { t: 0.35, x: -2184, y: -945 },
       { t: 0.55, x: -1680, y: 0 },
       { t: 0.85, x: -504, y: -210 },
       { t: 1, x: -168, y: -(window.innerHeight * 0.1) },
-    ];
+    ],
 
-    const animatePan = (timestamp) => {
-      if (!playing) return;
-      if (!animStartTime) animStartTime = timestamp;
-
-      let progress = ((timestamp - animStartTime) / animDuration) % 1;
-
-      let i = animationFrames.findIndex(
-        (f, idx) => progress >= f.t && progress < animationFrames[idx + 1]?.t
-      );
-      if (i === -1 || i >= animationFrames.length - 1) i = 0;
-
-      const a = animationFrames[i];
-      const b = animationFrames[i + 1];
-      const localT = (progress - a.t) / (b.t - a.t);
-
-      offsetX = lerp(a.x, b.x, localT);
-      offsetY = lerp(a.y, b.y, localT);
-
-      updateTransform();
-      requestAnimationFrame(animatePan);
-    };
-
-    if (new URLSearchParams(location.search).has("play")) {
-      this.classList.add("loop");
-      playing = true;
-      requestAnimationFrame(animatePan);
-    }
-
-    // ---------------------------------------
-    // Asset Definitions
-    // ---------------------------------------
-    const imgs = [];
-    const imgs_options = {
+    imgs: [],
+    imgs_options: {
       map: { name: "map", width: 4000, height: 2000, x: 0, y: 0 },
       itesa: { name: "itesa", x: 2262, y: 669, hover: true },
       itla: { name: "itla", x: 2492, y: 811, hover: true },
@@ -78,24 +34,77 @@ class PanSVG extends HTMLElement {
       santodoming: { name: "santodomingo", x: 1660, y: 811 },
       twinfalls: { name: "twinfalls", x: 840, y: 308 },
       dc: { name: "dc", x: 2379, y: 129 },
+    },
+  };
+
+  connectedCallback() {
+    // ---------------------------------------
+    // SVG Base Setup
+    // ---------------------------------------
+    const svg = document.createElementNS(this.#data.svgNS, "svg");
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", "100%");
+    svg.style.touchAction = "none";
+    svg.style.cursor = "grab";
+    this.appendChild(svg);
+
+    const g = document.createElementNS(this.#data.svgNS, "g");
+    g.setAttribute("class", "map");
+    svg.appendChild(g);
+
+    // ---------------------------------------
+    // Animation Setup
+    // ---------------------------------------
+    // let this.#data.playing = false;
+
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    const animatePan = (timestamp) => {
+      if (!this.#data.playing) return;
+      if (!this.#data.animStartTime) this.#data.animStartTime = timestamp;
+
+      let progress =
+        ((timestamp - this.#data.animStartTime) / this.#data.animDuration) % 1;
+
+      let i = this.#data.animationFrames.findIndex(
+        (f, idx) =>
+          progress >= f.t && progress < this.#data.animationFrames[idx + 1]?.t
+      );
+      if (i === -1 || i >= this.#data.animationFrames.length - 1) i = 0;
+
+      const a = this.#data.animationFrames[i];
+      const b = this.#data.animationFrames[i + 1];
+      const localT = (progress - a.t) / (b.t - a.t);
+
+      this.#data.offsetX = lerp(a.x, b.x, localT);
+      this.#data.offsetY = lerp(a.y, b.y, localT);
+
+      updateTransform();
+      requestAnimationFrame(animatePan);
     };
 
+    if (new URLSearchParams(location.search).has("play")) {
+      this.classList.add("loop");
+      this.#data.playing = true;
+      requestAnimationFrame(animatePan);
+    }
+
     const createBGImage = (opt, theme) => {
-      const img = document.createElementNS(svgNS, "image");
+      const img = document.createElementNS(this.#data.svgNS, "image");
       img.setAttributeNS(null, "href", `../img/${theme}/${opt.name}.webp`);
       img.setAttribute("x", opt.x);
       img.setAttribute("y", opt.y);
       if (opt.width) img.setAttribute("width", opt.width);
       if (opt.height) img.setAttribute("height", opt.height);
       if (opt.hover) img.setAttribute("class", "hover-state");
-      imgs.push(img);
+      this.#data.imgs.push(img);
       return img;
     };
 
     ["light", "dark"].forEach((theme) => {
-      const themeGroup = document.createElementNS(svgNS, "g");
+      const themeGroup = document.createElementNS(this.#data.svgNS, "g");
       themeGroup.setAttribute("class", theme);
-      Object.values(imgs_options).forEach((opt) =>
+      Object.values(this.#data.imgs_options).forEach((opt) =>
         themeGroup.appendChild(createBGImage(opt, theme))
       );
       g.appendChild(themeGroup);
@@ -104,30 +113,28 @@ class PanSVG extends HTMLElement {
     // ---------------------------------------
     // Pan & Zoom State
     // ---------------------------------------
-    let offsetX = 0;
-    let offsetY = 0;
-    let scale = 1;
-    let startX = 0;
-    let startY = 0;
-    let isDragging = false;
-
     const updateTransform = () => {
       const svgRect = svg.getBoundingClientRect();
       const viewW = svgRect.width;
       const viewH = svgRect.height;
 
-      const imgW = parseFloat(imgs[0].getAttribute("width")) * scale;
-      const imgH = parseFloat(imgs[0].getAttribute("height")) * scale;
+      const imgW =
+        parseFloat(this.#data.imgs[0].getAttribute("width")) * this.#data.scale;
+      const imgH =
+        parseFloat(this.#data.imgs[0].getAttribute("height")) *
+        this.#data.scale;
 
       const minX = Math.min(0, viewW - imgW);
       const minY = Math.min(0, viewH - imgH);
 
-      offsetX = Math.min(Math.max(offsetX, minX), 0);
-      offsetY = Math.min(Math.max(offsetY, minY), 0);
+      this.#data.offsetX = Math.min(Math.max(this.#data.offsetX, minX), 0);
+      this.#data.offsetY = Math.min(Math.max(this.#data.offsetY, minY), 0);
 
       g.setAttribute(
         "transform",
-        `matrix(${scale},0,0,${scale},${offsetX},${offsetY})`
+        `matrix(${this.#data.scale},0,0,${this.#data.scale},${
+          this.#data.offsetX
+        },${this.#data.offsetY})`
       );
     };
 
@@ -140,24 +147,24 @@ class PanSVG extends HTMLElement {
         : { x: e.offsetX, y: e.offsetY };
 
     const onDown = (e) => {
-      isDragging = true;
+      this.#data.isDragging = true;
       const p = getPoint(e);
-      startX = p.x - offsetX;
-      startY = p.y - offsetY;
+      this.#data.startX = p.x - this.#data.offsetX;
+      this.#data.startY = p.y - this.#data.offsetY;
       svg.style.cursor = "grabbing";
     };
 
     const onMove = (e) => {
-      if (!isDragging) return;
+      if (!this.#data.isDragging) return;
       e.preventDefault();
       const p = getPoint(e);
-      offsetX = p.x - startX;
-      offsetY = p.y - startY;
+      this.#data.offsetX = p.x - this.#data.startX;
+      this.#data.offsetY = p.y - this.#data.startY;
       updateTransform();
     };
 
     const onUp = () => {
-      isDragging = false;
+      this.#data.isDragging = false;
       svg.style.cursor = "grab";
     };
 
@@ -178,19 +185,21 @@ class PanSVG extends HTMLElement {
 
       const mouseX = e.offsetX;
       const mouseY = e.offsetY;
-      let newScale = scale * (1 - e.deltaY * 0.001);
+      let newScale = this.#data.scale * (1 - e.deltaY * 0.001);
 
       const minScale = Math.max(
-        svg.clientWidth / imgs[0].getAttribute("width"),
-        svg.clientHeight / imgs[0].getAttribute("height")
+        svg.clientWidth / this.#data.imgs[0].getAttribute("width"),
+        svg.clientHeight / this.#data.imgs[0].getAttribute("height")
       );
 
       newScale = Math.min(Math.max(newScale, minScale), 5);
 
-      offsetX -= (mouseX - offsetX) * (newScale / scale - 1);
-      offsetY -= (mouseY - offsetY) * (newScale / scale - 1);
+      this.#data.offsetX -=
+        (mouseX - this.#data.offsetX) * (newScale / this.#data.scale - 1);
+      this.#data.offsetY -=
+        (mouseY - this.#data.offsetY) * (newScale / this.#data.scale - 1);
 
-      scale = newScale;
+      this.#data.scale = newScale;
       updateTransform();
     });
   }
