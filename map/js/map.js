@@ -44,8 +44,6 @@ class PanSVG extends HTMLElement {
   };
 
   connectedCallback() {
-    this.classList.add("loading"); // hide until ready
-
     this.#setupSVG();
     this.#setupImages();
     this.#setupAnimation();
@@ -89,8 +87,7 @@ class PanSVG extends HTMLElement {
   #setupImages() {
     const createImage = (opt, theme) => {
       const img = document.createElementNS(this.#data.svgNS, "image");
-
-      img.setAttributeNS(null, "href", `../img/${theme}/${opt.name}.webp`);
+      img.setAttributeNS(null, "href", `/map/img/${theme}/${opt.name}.webp`);
       img.setAttribute("x", opt.x);
       img.setAttribute("y", opt.y);
       if (opt.width) img.setAttribute("width", opt.width);
